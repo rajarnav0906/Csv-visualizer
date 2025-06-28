@@ -1,76 +1,105 @@
+// src/components/HeaderMapper.tsx
 'use client';
 import React, { useEffect, useState } from 'react';
 
 interface HeaderMapperProps {
-  headers: string[];
-  sampleRows: any[];
-  onMappingDone: (mapped: string[]) => void;
+  data: Record<string, any[]>;
+  onMappingDone: (mapped: Record<string, any[]>) => void;
 }
 
-const HeaderMapper: React.FC<HeaderMapperProps> = ({
-  headers,
-  sampleRows,
-  onMappingDone
-}) => {
-  const [mappedHeaders, setMappedHeaders] = useState<string[]>([]);
+const HeaderMapper: React.FC<HeaderMapperProps> = ({ data, onMappingDone }) => {
+  const [mappedHeaders, setMappedHeaders] = useState<Record<string, string[]>>({});
 
-  // Simulate smart mapping using a basic logic or Gemini API later
   useEffect(() => {
-    if (!headers || headers.length === 0) return;
+    const initialMapping: Record<string, string[]> = {};
 
-    const suggestions = headers.map(h =>
-      h.toLowerCase().includes('name') ? 'Full Name' :
-      h.toLowerCase().includes('email') ? 'Email Address' :
-      h.toLowerCase().includes('phone') ? 'Phone Number' :
-      h // fallback to original
-    );
+    Object.entries(data).forEach(([sheet, rows]) => {
+      const headers = Object.keys(rows[0] || {});
+      const suggestions = headers.map((h) =>
+        h.toLowerCase().includes('name') ? 'Full Name' :
+        h.toLowerCase().includes('email') ? 'Email Address' :
+        h.toLowerCase().includes('phone') ? 'Phone Number' :
+        h.toLowerCase().includes('id') ? h.replace(/\s+/g, '') :
+        h
+      );
+      initialMapping[sheet] = suggestions;
+    });
 
-    setMappedHeaders(suggestions);
-  }, [headers]);
+    setMappedHeaders(initialMapping);
+  }, [data]);
 
-  const handleChange = (index: number, value: string) => {
-    const updated = [...mappedHeaders];
-    updated[index] = value;
+  const handleChange = (sheet: string, index: number, value: string) => {
+    const updated = { ...mappedHeaders };
+    updated[sheet][index] = value;
     setMappedHeaders(updated);
   };
 
   const handleApply = () => {
-    onMappingDone(mappedHeaders);
+    const finalMappedData: Record<string, any[]> = {};
+
+    Object.entries(data).forEach(([sheet, rows]) => {
+      const headers = Object.keys(rows[0] || []);
+      const mapped = mappedHeaders[sheet] || [];
+
+      const updatedRows = rows.map((row) => {
+        const newRow: Record<string, any> = {};
+        mapped.forEach((newKey, idx) => {
+          const oldKey = headers[idx];
+          newRow[newKey] = row[oldKey];
+        });
+        return newRow;
+      });
+
+      finalMappedData[sheet] = updatedRows;
+    });
+
+    onMappingDone(finalMappedData);
   };
 
   return (
-    <div className="mt-6">
-      <h3 className="text-xl mb-2">🧠 AI-Suggested Header Mapping</h3>
-      <table className="border border-collapse border-gray-300">
-        <thead>
-          <tr>
-            <th className="border px-2 py-1">Original</th>
-            <th className="border px-2 py-1">Suggested</th>
-            <th className="border px-2 py-1">Sample</th>
-          </tr>
-        </thead>
-        <tbody>
-          {headers.map((header, index) => (
-            <tr key={index}>
-              <td className="border px-2 py-1">{header}</td>
-              <td className="border px-2 py-1">
-                <input
-                  value={mappedHeaders[index] || ''}
-                  onChange={e => handleChange(index, e.target.value)}
-                  className="border p-1 w-full"
-                />
-              </td>
-              <td className="border px-2 py-1">
-                {sampleRows?.[0]?.[header] ?? ''}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="mt-6 p-4 bg-gray-800 rounded-lg">
+      <h3 className="text-xl mb-3 text-blue-400">🧠 AI-Suggested Header Mapping</h3>
+
+      {Object.entries(data).map(([sheet, rows]) => {
+        const headers = Object.keys(rows[0] || []);
+        return (
+          <div key={sheet} className="mb-6">
+            <h4 className="text-lg font-semibold mb-1 text-gray-300">{sheet}</h4>
+            <div className="overflow-auto">
+              <table className="border border-collapse border-gray-600 w-full">
+                <thead className="bg-gray-700">
+                  <tr>
+                    <th className="border px-3 py-2 text-left text-gray-300">Original</th>
+                    <th className="border px-3 py-2 text-left text-gray-300">Suggested</th>
+                    <th className="border px-3 py-2 text-left text-gray-300">Sample</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {headers.map((header, index) => (
+                    <tr key={index} className="hover:bg-gray-700/50">
+                      <td className="border px-3 py-2 text-gray-300">{header}</td>
+                      <td className="border px-3 py-2">
+                        <input
+                          value={mappedHeaders[sheet]?.[index] || ''}
+                          onChange={(e) => handleChange(sheet, index, e.target.value)}
+                          className="border p-1 w-full bg-gray-800 text-gray-300 border-gray-600 rounded"
+                        />
+                      </td>
+                      <td className="border px-3 py-2 text-gray-400 text-sm">
+                        {rows[0]?.[header] ?? ''}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })}
 
       <button
         onClick={handleApply}
-        className="mt-3 px-4 py-2 bg-blue-600 text-white rounded"
+        className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
       >
         ✅ Confirm Mapping
       </button>
